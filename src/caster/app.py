@@ -152,28 +152,154 @@ def _seek(cast: Any, target: float, duration: float) -> None:
     cast.media_controller.seek(min(duration, max(0.0, target)))
 
 
-def _draw(stdscr: Any, cast: Any, media: MediaInfo) -> None:
+def _init_colors() -> dict[str, int]:
+    styles = {
+        "normal": 0,
+        "frame": 0,
+        "header": 0,
+        "accent": 0,
+        "selected": 0,
+        "filled": 0,
+        "empty": 0,
+    }
+    try:
+        if not curses.has_colors():
+            return styles
+        curses.start_color()
+        curses.init_pair(1, curses.COLOR_WHITE, curses.COLOR_BLUE)
+        curses.init_pair(2, curses.COLOR_CYAN, curses.COLOR_BLUE)
+        curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLUE)
+        curses.init_pair(4, curses.COLOR_BLUE, curses.COLOR_CYAN)
+        bright = curses.A_BOLD
+        styles.update(
+            normal=curses.color_pair(1) | bright,
+            frame=curses.color_pair(2) | bright,
+            header=curses.color_pair(1) | bright,
+            accent=curses.color_pair(3) | bright,
+            selected=curses.color_pair(4) | bright,
+            filled=curses.color_pair(4) | bright,
+            empty=curses.color_pair(2) | bright,
+        )
+    except curses.error:
+        return {name: 0 for name in styles}
+    return styles
+
+
+def _put(stdscr: Any, row: int, column: int, text: str, style: int = 0) -> None:
     height, width = stdscr.getmaxyx()
-    if width < 2 or height < 1:
+    if row < 0 or row >= height or column < 0 or column >= width - 1:
         return
-    current = min(media.duration, _position(cast))
-    audio = ", ".join(media.audio_codecs) if media.audio_codecs else "none"
-    video_label = "H.264" if media.video_codec == "h264" else media.video_codec.upper()
-    if media.video_profile:
-        video_label += f" {media.video_profile}"
-    lines = (
-        f"Casting: {media.path.name}",
-        f"State: {_player_state(cast)}",
-        f"Position: {_format_time(current)} / {_format_time(media.duration)}",
-        f"Video: {video_label}, {media.width}x{media.height} at {media.frame_rate:g} fps; audio: {audio}",
-        "",
-        "Space: play/pause    Left/Right: seek 30 seconds",
-        "Ctrl+Left/Ctrl+Right: seek 5 minutes    0-9: jump to 0-90%",
-        "q or Ctrl-C: stop casting and quit",
-    )
+    stdscr.addnstr(row, column, text, width - column - 1, style)
+
+
+def _draw_progress(
+    stdscr: Any,
+    row: int,
+    width: int,
+    current: float,
+    duration: float,
+    styles: dict[str, int],
+) -> None:
+    if width < 8:
+        return
+    ratio = min(1.0, max(0.0, current / duration)) if duration > 0 else 0.0
+    percent = int(ratio * 100)
+    bar_width = width - 7
+    filled = min(bar_width, int(ratio * bar_width))
+    _put(stdscr, row, 2, "[", styles["frame"])
+    _put(stdscr, row, 3, "#" * filled, styles["filled"])
+    _put(stdscr, row, 3 + filled, "." * (bar_width - filled), styles["empty"])
+    _put(stdscr, row, 3 + bar_width, "]", styles["frame"])
+    _put(stdscr, row, 4 + bar_width, f" {percent:3d}%", styles["accent"])
+
+
+def _draw(stdscr: Any, cast: Any, media: MediaInfo, styles: dict[str, int]) -> None:
+    height, width = stdscr.getmaxyx()
     stdscr.erase()
-    for row, line in enumerate(lines[:height]):
-        stdscr.addnstr(row, 0, line, width - 1)
+    if width < 3 or height < 4:
+        stdscr.refresh()
+        return
+
+    right = width - 2
+    bottom = height - 2
+    _put(stdscr, 0, 0, "┌" + "─" * (right - 1) + "┐", styles["frame"])
+    _put(stdscr, bottom, 0, "└" + "─" * (right - 1) + "┘", styles["frame"])
+    for row in range(1, bottom):
+        _put(stdscr, row, 0, "│", styles["frame"])
+        _put(stdscr, row, right, "│", styles["frame"])
+    if height < 12:
+        _put(stdscr, 1, 2, "CASTER", styles["header"])
+        stdscr.refresh()
+        return
+
+    content_width = max(0, right - 3)
+    _put(stdscr, 1, 2, "CASTER", styles["header"])
+    if bottom > 2:
+        _put(stdscr, 2, 0, "├" + "─" * (right - 1) + "┤", styles["frame"])
+
+    current = min(max(0.0, media.duration), _position(cast))
+    state = _player_state(cast)
+    footer = bottom - 1
+    if height >= 20:
+        _put(stdscr, 3, 2, "NOW PLAYING", styles["accent"])
+        _put(stdscr, 4, 2, media.path.name, styles["header"])
+        _put(stdscr, 5, 2, f"Receiver: {cast.name}", styles["normal"])
+        _put(stdscr, 6, 2, f"State: {state}", styles["accent"])
+        audio = ", ".join(media.audio_codecs) if media.audio_codecs else "none"
+        video_label = (
+            "H.264" if media.video_codec == "h264" else media.video_codec.upper()
+        )
+        if media.video_profile:
+            video_label += f" {media.video_profile}"
+        _put(
+            stdscr,
+            7,
+            2,
+            f"Video: {video_label}, {media.width}x{media.height} at "
+            f"{media.frame_rate:g} fps; audio: {audio}",
+            styles["normal"],
+        )
+        if bottom > 8:
+            _put(stdscr, 8, 0, "├" + "─" * (right - 1) + "┤", styles["frame"])
+        _put(stdscr, 9, 2, "TIMELINE", styles["accent"])
+        _put(
+            stdscr,
+            10,
+            2,
+            f"{_format_time(current)} / {_format_time(media.duration)}",
+            styles["normal"],
+        )
+        _draw_progress(stdscr, 11, content_width, current, media.duration, styles)
+        if bottom > 12:
+            _put(stdscr, 12, 0, "├" + "─" * (right - 1) + "┤", styles["frame"])
+        _put(stdscr, 13, 2, "PLAYBACK CONTROLS", styles["accent"])
+        _put(stdscr, 14, 2, "Space       Play / pause", styles["normal"])
+        _put(stdscr, 15, 2, "Left/Right  Seek 30 seconds", styles["normal"])
+        _put(
+            stdscr,
+            16,
+            2,
+            "Ctrl+Arrows Seek 5 minutes   0-9 Jump to 0%-90%",
+            styles["normal"],
+        )
+    else:
+        _put(stdscr, 3, 2, media.path.name, styles["header"])
+        _put(stdscr, 4, 2, f"State: {state}", styles["accent"])
+        _put(
+            stdscr,
+            5,
+            2,
+            f"{_format_time(current)} / {_format_time(media.duration)}",
+            styles["normal"],
+        )
+        _draw_progress(stdscr, 6, content_width, current, media.duration, styles)
+        if footer > 7:
+            _put(stdscr, 7, 2, "Space Play/Pause   Arrows Seek", styles["normal"])
+    _put(stdscr, footer, 1, " " * (right - 1), styles["selected"])
+    _put(
+        stdscr, footer, 2, "Space Play/Pause   Q Stop   Ctrl-C Quit", styles["selected"]
+    )
+
     stdscr.refresh()
 
 
@@ -185,9 +311,14 @@ def _run_tui(cast: Any, media: MediaInfo) -> None:
             curses.curs_set(0)
         except curses.error:
             pass
+        styles = _init_colors()
+        try:
+            stdscr.bkgd(" ", styles["normal"])
+        except curses.error:
+            pass
 
         while True:
-            _draw(stdscr, cast, media)
+            _draw(stdscr, cast, media, styles)
             key = _read_key(stdscr)
             if key in (-1,):
                 continue
@@ -268,10 +399,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         with MediaServer(media.path, address, media.content_type) as server:
             cast.media_controller.play_media(
                 server.url, media.content_type, title=media.path.name
-            )
-            print(
-                f"Casting {media.path.name} to {cast.name}. Press q to stop.",
-                file=sys.stderr,
             )
             _run_tui(cast, media)
     except KeyboardInterrupt:

@@ -43,6 +43,8 @@ The compatibility check accepts H.264 in MP4/M4V (Baseline/Constrained Baseline 
 
 It accepts `youtube.com/watch?v=...` URLs (with or without `www`) and `youtu.be/...` links with an 11-character video ID. The script stores videos in `./videos/<video-id>.webm`; it prefers VP9 video with Opus audio up to 2160p, then falls back to the best format up to 2160p. If that file already exists, it skips downloading and casts the existing file. On the first needed download it installs `yt-dlp` under `./tools`; later needed downloads update it. `curl` and an internet connection are needed to fetch `yt-dlp` and videos. The script runs `uv run caster`, so install the project environment with `uv sync` first.
 
+The playback screen uses a blue-and-cyan, Turbo Pascal-style layout. Its timeline shows the current position and a live progress bar.
+
 ## Controls
 
 - `Space`: play/pause

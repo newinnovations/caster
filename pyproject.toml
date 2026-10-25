@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "caster"
+version = "0.1.0"
+description = "A terminal Chromecast video player"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = ["PyChromecast>=14.0.10,<15"]
+
+[project.scripts]
+caster = "caster.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/caster"]

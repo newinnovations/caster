@@ -1,8 +1,11 @@
 #!/bin/bash
 
-url="$1"
+arg="$1"
 
-if [[ $url =~ ^https?://(www\.)?(youtube\.com/watch\?([^#]*&)?v=|youtu\.be/)([a-zA-Z0-9_-]{11}) ]]; then
+if [ -f "$arg" ]; then
+    echo "Casting $arg"
+    uv run caster "$arg"
+elif [[ $arg =~ ^https?://(www\.)?(youtube\.com/watch\?([^#]*&)?v=|youtu\.be/)([a-zA-Z0-9_-]{11}) ]]; then
     video_id="${BASH_REMATCH[4]}"
     echo "YouTube video ID: $video_id"
     video="./videos/$video_id.webm"
@@ -21,12 +24,12 @@ if [[ $url =~ ^https?://(www\.)?(youtube\.com/watch\?([^#]*&)?v=|youtu\.be/)([a-
         ./tools/yt-dlp \
             -f "bestvideo[vcodec^=vp9][height<=2160]+bestaudio[acodec=opus]/best[height<=2160]" \
             --merge-output-format webm \
-            -o "$video" "$url"
+            -o "$video" "$arg"
     fi
     if [ -f "$video" ]; then
         echo "Casting $video"
         uv run caster "$video"
     fi
 else
-    echo "Error: $url is not a valid youtube URL"
+    echo "Error: $arg is not a valid youtube URL or file"
 fi

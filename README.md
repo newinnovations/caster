@@ -33,15 +33,16 @@ uv run caster video.mp4 --check-only
 
 The compatibility check accepts H.264 in MP4/M4V (Baseline/Constrained Baseline through level 3.1, Main through 4.0, High through 4.1), plus VP8 or VP9 in WebM. VP8 is capped at 1080p30 or 720p60; VP9 accepts Profiles 0 and 2 up to 4K/60. MP4 audio may be AAC-LC, HE-AAC, or MP3; WebM audio may be Vorbis or Opus. VP9 support and maximum resolution vary by Chromecast model, so a passing check cannot guarantee playback on every receiver. See [Google's supported media table](https://developers.google.com/cast/docs/media). Unsupported files are rejected rather than transcoded.
 
-## YouTube helper
+## Casting local files and YouTube videos
 
-`cast-yt.sh` downloads a YouTube video and then casts it with Caster:
+`caster.sh` casts an existing local video file directly, or downloads a YouTube video and then casts it:
 
 ```sh
-./cast-yt.sh 'https://www.youtube.com/watch?v=VIDEO_ID'
+./caster.sh video.mp4
+./caster.sh 'https://www.youtube.com/watch?v=VIDEO_ID'
 ```
 
-It accepts `youtube.com/watch?v=...` URLs (with or without `www`) and `youtu.be/...` links with an 11-character video ID. The script stores videos in `./videos/<video-id>.webm`; it prefers VP9 video with Opus audio up to 2160p, then falls back to the best format up to 2160p. If that file already exists, it skips downloading and casts the existing file. On the first needed download it installs `yt-dlp` under `./tools`; later needed downloads update it. `curl` and an internet connection are needed to fetch `yt-dlp` and videos. The script runs `uv run caster`, so install the project environment with `uv sync` first.
+It accepts `youtube.com/watch?v=...` URLs (with or without `www`) and `youtu.be/...` links with an 11-character video ID. Downloaded videos are stored in `./videos/<video-id>.webm`; it prefers VP9 video with Opus audio up to 2160p, then falls back to the best format up to 2160p. If that file already exists, it skips downloading and casts it. On the first needed download it installs `yt-dlp` under `./tools`; later needed downloads update it. `curl` and an internet connection are needed to fetch `yt-dlp` and videos. The script runs `uv run caster`, so install the project environment with `uv sync` first.
 
 The playback screen uses a blue-and-cyan, Turbo Pascal-style layout. Its timeline shows the current position and a live progress bar.
 
